@@ -1,0 +1,34 @@
+-- Simulasi Laba Kotor dan PPh Badan
+SELECT
+  t.tahun,
+  t.skenario,
+  SUM(t.pendapatan) - SUM(t.beban_operasional + t.penyusutan) AS laba_kotor,
+  CASE 
+    WHEN t.skenario = 'tax_holiday' AND t.tahun BETWEEN k.tax_holiday_awal AND k.tax_holiday_akhir THEN 0
+    ELSE (SUM(t.pendapatan) - SUM(t.beban_operasional + t.penyusutan)) * k.tax_rate
+  END AS pph_badan
+FROM `project.dataset.transaksi_keuangan` t
+JOIN `project.dataset.kebijakan_fiskal` k
+ON t.tahun = k.tahun
+GROUP BY t.tahun, t.skenario, k.tax_rate, k.tax_holiday_awal, k.tax_holiday_akhir
+ORDER BY t.tahun, t.skenario;
+
+-- Simulasi Depresiasi (Garis Lurus)
+SELECT
+  aset_id,
+  kategori,
+  nilai_perolehan,
+  umur_ekonomis,
+  nilai_perolehan / umur_ekonomis AS depresiasi_tahunan
+FROM `project.dataset.aset_tetap`
+WHERE metode = 'garis_lurus';
+
+-- Simulasi Depresiasi (Saldo Menurun, 25% untuk Kelompok I)
+SELECT
+  aset_id,
+  kategori,
+  nilai_perolehan,
+  umur_ekonomis,
+  ROUND(nilai_perolehan * 0.25, 2) AS depresiasi_tahun_pertama
+FROM `project.dataset.aset_tetap`
+WHERE metode = 'saldo_menurun' AND kategori != 'Bangunan';
