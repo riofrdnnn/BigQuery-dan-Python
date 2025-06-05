@@ -1,0 +1,145 @@
+# PENTING: Jalankan baris instalasi di sel terpisah di bagian paling atas notebook.
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from google.colab import files
+import numpy as np # Import numpy untuk penyesuaian posisi batang
+
+# 1. Membuat dataset dari tabel yang diberikan
+transaksi_data = {
+    'tahun': [2023, 2023, 2023, 2024, 2024, 2024, 2025, 2025, 2025, 2026, 2026, 2026, 2027, 2027, 2027],
+    'pendapatan': [1000000000, 1000000000, 1000000000, 1200000000, 1200000000, 1200000000, 1500000000, 1500000000, 1500000000, 1800000000, 1800000000, 1800000000, 2000000000, 2000000000, 2000000000],
+    'beban_operasional': [600000000, 600000000, 600000000, 700000000, 700000000, 700000000, 800000000, 800000000, 800000000, 900000000, 900000000, 900000000, 1000000000, 1000000000, 1000000000],
+    'penyusutan': [50000000, 75000000, 62500000, 50000000, 75000000, 46875000, 50000000, 75000000, 35156250, 50000000, 0, 26367188, 50000000, 0, 19775391],
+    'skenario': ['normal', 'tax_holiday', 'saldo_menurun', 'normal', 'tax_holiday', 'saldo_menurun', 'normal', 'tax_holiday', 'saldo_menurun', 'normal', 'tax_holiday', 'saldo_menurun', 'normal', 'tax_holiday', 'saldo_menurun'],
+    'aset_id': ['A001', 'A001', 'A001', 'A002', 'A002', 'A002', 'A003', 'A003', 'A003', 'A001', 'A001', 'A001', 'A002', 'A002', 'A002']
+}
+aset_tetap_data = {
+    'aset_id': ['A001', 'A001', 'A002', 'A002', 'A003', 'A003'],
+    'kategori': ['Mesin', 'Mesin', 'Kendaraan', 'Kendaraan', 'Bangunan', 'Bangunan'],
+    'nilai_perolehan': [250000000, 250000000, 300000000, 300000000, 400000000, 400000000],
+    'umur_ekonomis': [5, 5, 6, 6, 8, 8],
+    'metode': ['garis_lurus', 'saldo_menurun', 'garis_lurus', 'saldo_menurun', 'garis_lurus', 'saldo_menurun']
+}
+kebijakan_fiskal_data = {
+    'tahun': [2023, 2024, 2025, 2026, 2027],
+    'tax_rate': [0.22, 0.22, 0.22, 0.22, 0.22],
+    'tax_holiday_awal': [2023, 2023, 2023, 2023, 2023],
+    'tax_holiday_akhir': [2027, 2027, 2027, 2027, 2027]
+}
+
+# Membuat DataFrame
+df_transaksi = pd.DataFrame(transaksi_data)
+df_aset = pd.DataFrame(aset_tetap_data)
+df_fiskal = pd.DataFrame(kebijakan_fiskal_data)
+
+# 2. Menghitung laba kotor dan PPh Badan
+df_transaksi['laba_kotor'] = df_transaksi['pendapatan'] - (df_transaksi['beban_operasional'] + df_transaksi['penyusutan'])
+df_merged = df_transaksi.merge(df_fiskal, on='tahun', how='left')
+df_merged['pph_badan'] = df_merged.apply(
+    lambda row: 0 if (row['skenario'] == 'tax_holiday' and row['tahun'] >= row['tax_holiday_awal'] and row['tahun'] <= row['tax_holiday_akhir'])
+    else row['laba_kotor'] * row['tax_rate'], axis=1)
+
+# 3. Menyiapkan tabel hasil analisis
+result_table = df_merged[['tahun', 'skenario', 'pendapatan', 'beban_operasional', 'penyusutan', 'laba_kotor', 'pph_badan']]
+result_table = result_table.sort_values(by=['tahun', 'skenario'])
+
+# Menyimpan tabel hasil ke CSV
+result_table.to_csv('analisis_pph_badan.csv', index=False)
+# files.download('analisis_pph_badan.csv') # Uncomment untuk mengunduh CSV
+
+# 4. Visualisasi PPh Badan (Diagram Garis)
+%matplotlib inline
+plt.figure(figsize=(10, 6))
+for skenario in ['normal', 'tax_holiday', 'saldo_menurun']:
+    data = df_merged[df_merged['skenario'] == skenario]
+    plt.plot(data['tahun'], data['pph_badan'], marker='o', label=skenario)
+
+plt.title('Perbandingan PPh Badan Antar Skenario (2023-2027)')
+plt.xlabel('Tahun')
+plt.ylabel('PPh Badan (Rupiah)')
+plt.legend()
+plt.grid(True)
+plt.xticks(df_merged['tahun'].unique())
+plt.tight_layout()
+
+# Menyimpan visualisasi PPh Badan
+plt.savefig('pph_badan_skenario.png')
+# files.download('pph_badan_skenario.png') # Uncomment untuk mengunduh gambar
+plt.show() # Menampilkan gambar
+
+# 5. Visualisasi Depresiasi (Penyusutan) Antar Skenario (Diagram Batang)
+plt.figure(figsize=(12, 7)) # Ukuran figure yang sedikit lebih besar untuk diagram batang
+skenarios = ['normal', 'tax_holiday', 'saldo_menurun']
+tahun_unik = df_merged['tahun'].unique()
+bar_width = 0.2 # Lebar setiap batang
+# Membuat posisi untuk setiap kelompok batang
+r1 = np.arange(len(tahun_unik))
+r2 = [x + bar_width for x in r1]
+r3 = [x + bar_width for x in r2]
+
+# Melakukan plotting batang untuk setiap skenario
+# Menggunakan nama skenario dari list 'skenarios' untuk filtering
+plt.bar(r1, df_merged[df_merged['skenario'] == skenarios[0]]['penyusutan'], color='skyblue', width=bar_width, edgecolor='grey', label=skenarios[0])
+plt.bar(r2, df_merged[df_merged['skenario'] == skenarios[1]]['penyusutan'], color='lightcoral', width=bar_width, edgecolor='grey', label=skenarios[1])
+plt.bar(r3, df_merged[df_merged['skenario'] == skenarios[2]]['penyusutan'], color='lightgreen', width=bar_width, edgecolor='grey', label=skenarios[2])
+
+# Menambahkan ticks pada sumbu x
+plt.xlabel('Tahun', fontweight='bold')
+plt.ylabel('Depresiasi (Rupiah)', fontweight='bold')
+plt.xticks([r + bar_width for r in range(len(tahun_unik))], tahun_unik) # Mengatur posisi ticks di tengah grup batang
+
+plt.title('Perbandingan Depresiasi (Penyusutan) Antar Skenario (2023-2027)')
+plt.legend()
+plt.grid(axis='y') # Grid hanya pada sumbu y
+plt.tight_layout()
+
+# Menyimpan visualisasi Depresiasi Antar Skenario
+plt.savefig('depresiasi_skenario_barplot.png') # Nama file diubah untuk membedakan
+# files.download('depresiasi_skenario_barplot.png') # Uncomment untuk mengunduh gambar
+plt.show() # Menampilkan gambar
+
+# 6. Menghitung dan Memvisualisasikan Depresiasi Tahunan per Metode (Diagram Batang)
+plt.figure(figsize=(12, 7)) # Ukuran figure untuk diagram batang
+# Gabungkan df_transaksi dengan df_aset untuk mendapatkan metode depresiasi
+df_merged_depreciation = df_transaksi.merge(df_aset[['aset_id', 'metode']], on='aset_id', how='left')
+
+# Hitung total penyusutan tahunan per metode
+annual_depreciation_by_method = df_merged_depreciation.groupby(['tahun', 'metode'])['penyusutan'].sum().reset_index()
+
+# Pivot tabel untuk visualisasi yang lebih mudah
+pivot_depreciation = annual_depreciation_by_method.pivot(index='tahun', columns='metode', values='penyusutan').fillna(0)
+
+# Dapatkan daftar metode unik dan tahun unik dari pivot table
+metode_unik = pivot_depreciation.columns
+tahun_unik = pivot_depreciation.index.tolist() # Convert index to list for xticks
+bar_width = 0.8 / len(metode_unik) # Sesuaikan lebar batang berdasarkan jumlah metode
+
+# Buat posisi untuk setiap kelompok batang
+r = np.arange(len(tahun_unik))
+bar_positions = [r + i * bar_width for i in range(len(metode_unik))]
+
+# Warna untuk setiap metode (opsional, bisa disesuaikan)
+colors = ['skyblue', 'lightcoral', 'lightgreen', 'gold']
+
+# Plotting batang untuk setiap metode
+for i, metode in enumerate(metode_unik):
+    plt.bar(bar_positions[i], pivot_depreciation[metode], color=colors[i % len(colors)],
+            width=bar_width, edgecolor='grey', label=metode)
+
+# Menambahkan ticks pada sumbu x
+plt.xlabel('Tahun', fontweight='bold')
+plt.ylabel('Total Depresiasi Tahunan (Rupiah)', fontweight='bold')
+# Atur posisi xticks di tengah grup batang untuk setiap tahun
+plt.xticks([pos + (len(metode_unik) - 1) * bar_width / 2 for pos in r], tahun_unik)
+
+
+plt.title('Total Depresiasi Tahunan Berdasarkan Metode (2023-2027)')
+plt.legend(title='Metode Depresiasi')
+plt.grid(axis='y') # Grid hanya pada sumbu y
+plt.tight_layout()
+
+# Menyimpan visualisasi Depresiasi per Metode
+plt.savefig('depresiasi_tahunan_per_metode_barplot.png')
+# files.download('depresiasi_tahunan_per_metode_barplot.png') # Uncomment untuk mengunduh gambar
+plt.show() # Menampilkan gambar
