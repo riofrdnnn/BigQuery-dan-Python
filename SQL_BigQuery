@@ -1,0 +1,20 @@
+SELECT
+  t0.tahun,
+  t0.skenario,
+  SUM(t0.pendapatan) - SUM(t0.beban_operasional + t0.penyusutan) AS laba_kotor,
+  CASE
+    WHEN t0.skenario = 'tax_holiday' AND t0.tahun BETWEEN t1.tax_holiday_awal AND t1.tax_holiday_akhir THEN 0
+    ELSE(SUM(t0.pendapatan) - SUM(t0.beban_operasional + t0.penyusutan)) * t1.tax_rate
+  END AS pph_badan
+FROM
+  `pph-badan-analysis`.pph_dataset.transaksi_keuangan AS t0
+  INNER JOIN
+  `pph-badan-analysis`.pph_dataset.kebijakan_fiskal AS t1
+  ON t0.tahun = t1.tahun
+  INNER JOIN
+  `pph-badan-analysis`.pph_dataset.aset_tetap AS t2
+  ON t0.aset_id = t2.aset_id
+WHERE
+  t2.metode = 'garis_lurus' OR (t2.metode = 'saldo_menurun' AND t2.kategori != 'Bangunan')
+GROUP BY 1, 2, t1.tax_rate, t1.tax_holiday_awal, t1.tax_holiday_akhir
+ORDER BY t0.tahun, t0.skenario;
